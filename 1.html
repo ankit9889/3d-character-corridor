@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preferred Corridor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #f29d0b;
+            --accent-dark: #d98a04;
+            --accent-soft: #fff8ec;
+            --text: #111318;
+            --muted: #5b6170;
+            --border: #e4e5e9;
+            --chip-icon-bg: #f1f2f4;
+            --danger: #ef4444;
+            --bg: #ffffff;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        body { min-height: 100vh; }
+
+        .page { max-width: 900px; margin: 0 auto; padding: 160px 40px 60px; }
+
+        .step-meta { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); max-width: 640px; }
+        .progress { height: 8px; background: #f3f4f6; border-radius: 99px; margin: 10px 0 26px; max-width: 640px; overflow: hidden; }
+        .progress > span { display: block; height: 100%; width: 100%; background: var(--accent); border-radius: 99px; }
+
+        .tag { display: inline-block; background: #fdf1e1; color: #7a4a0a; font-size: 12px; font-weight: 500; padding: 5px 9px; border-radius: 6px; }
+        h1 { font-size: 24px; line-height: 1.25; font-weight: 700; margin: 14px 0 4px; letter-spacing: -0.01em; }
+        h1 .req { color: var(--danger); }
+        .sub { margin: 0 0 14px; font-size: 14px; color: var(--muted); transition: color .2s; }
+        .sub.warn { color: var(--danger); }
+
+        .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+        .chip {
+            display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px;
+            border: 2px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer;
+            font: 500 14px/1.2 'Inter', sans-serif; color: var(--text); text-align: center;
+            transition: border-color .15s, background .15s, transform .15s;
+        }
+        .chip:hover { border-color: #cfd1d7; }
+        .chip:focus-visible { outline: 3px solid rgba(242,157,11,.35); outline-offset: 2px; }
+        .chip .ic { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--chip-icon-bg); display: grid; place-items: center; color: #8a909c; transition: background .15s, color .15s; }
+        .chip .label { flex: 1; }
+        .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+        .chip[aria-pressed="true"] .ic { background: var(--accent); color: #fff; }
+        .chip.shake { animation: shake .35s; }
+        @keyframes shake { 20%,60% { transform: translateX(-4px); } 40%,80% { transform: translateX(4px); } }
+
+        .actions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); margin-top: 32px; padding-top: 24px; max-width: 640px; }
+        .btn-back { background: none; border: none; font: 500 16px 'Inter', sans-serif; color: var(--text); padding: 10px 16px; border-radius: 8px; cursor: pointer; }
+        .btn-back:hover { background: #f5f5f6; }
+        .btn-continue { background: var(--accent); color: #fff; border: none; font: 700 16px 'Inter', sans-serif; padding: 11px 24px; border-radius: 8px; cursor: pointer; min-width: 118px; transition: background .15s, opacity .15s; }
+        .btn-continue:hover { background: var(--accent-dark); }
+        .btn-continue:disabled { opacity: .45; cursor: not-allowed; }
+        .selected-note { font-size: 13px; color: var(--muted); margin-top: 12px; min-height: 18px; }
+
+        /* 3D overlay: covers the page, never blocks clicks */
+        #overlay { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 20; }
+
+        .bubble {
+            position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none;
+            background: #fff; border: 1px solid #f0e3cc; color: var(--text); font-size: 13px; font-weight: 600;
+            padding: 7px 13px; border-radius: 14px; box-shadow: 0 6px 20px rgba(120,80,10,.14);
+            opacity: 0; transition: opacity .25s; white-space: nowrap; transform: translate(-50%, -100%);
+        }
+        .bubble::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 10px; height: 10px; background: #fff; border-right: 1px solid #f0e3cc; border-bottom: 1px solid #f0e3cc; transform: translateX(-50%) rotate(45deg); }
+        .bubble.show { opacity: 1; }
+
+        .model-card {
+            position: fixed; right: 20px; bottom: 20px; z-index: 40; max-width: 300px;
+            background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.12); font-size: 13px; color: var(--muted); line-height: 1.5;
+        }
+        .model-card strong { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
+        .model-card button { margin-top: 10px; background: var(--text); color: #fff; border: none; font: 600 13px 'Inter', sans-serif; padding: 9px 14px; border-radius: 8px; cursor: pointer; }
+        .model-card.drag { outline: 2px dashed var(--accent); outline-offset: 4px; }
+        .hidden { display: none !important; }
+        #file-input { display: none; }
+
+        @media (max-width: 700px) {
+            .page { padding: 130px 16px 40px; }
+            h1 { font-size: 21px; }
+            .chips { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+            .model-card { left: 16px; right: 16px; max-width: none; }
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
+</head>
+<body>
+<div class="page">
+    <main class="form">
+        <div class="step-meta"><span>Step 20 of 20</span><span>100%</span></div>
+        <div class="progress"><span></span></div>
+
+        <span class="tag">Location</span>
+        <h1><span id="title-text">Let's choose your preferred corridor.</span> <span class="req">*</span></h1>
+        <p class="sub" id="sub">Pick up to 3 corridors.</p>
+
+        <div class="chips" id="chips" role="group" aria-label="Corridors"></div>
+        <div class="selected-note" id="note"></div>
+
+        <div class="actions">
+            <button class="btn-back" id="btn-back">Back</button>
+            <button class="btn-continue" id="btn-continue" disabled>Continue</button>
+        </div>
+    </main>
+</div>
+
+<canvas id="overlay"></canvas>
+<div class="bubble" id="bubble"></div>
+
+<div class="model-card hidden" id="model-card">
+    <strong id="card-title">Load the 3D character</strong>
+    <span id="card-text">Choose character_textured.glb from the project folder (or drop it here). It is remembered after the first time.</span><br>
+    <button id="btn-load">Choose character_textured.glb</button>
+    <input type="file" id="file-input" accept=".glb,.gltf">
+</div>
+
+<script>
+    // ==================================================================
+    // Form
+    // ==================================================================
+    const CORRIDORS = ['Central Gurgaon', 'Dwarka Expressway', 'Golf Course Extension Road', 'Golf Course Road',
+        'M.G. Road', 'New Gurgaon', 'Old Gurgaon', 'Sohna Road', 'Southern Peripheral Road'];
+    const SEAT_CORRIDOR = 'Golf Course Extension Road';
+    const MAX = 3;
+    const selected = new Set(['New Gurgaon']);
+    const HOME_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-5h4v5"/></svg>';
+
+    const chipsEl = document.getElementById('chips');
+    const subEl = document.getElementById('sub');
+    const noteEl = document.getElementById('note');
+    const continueBtn = document.getElementById('btn-continue');
+    let seatChip = null;
+
+    CORRIDORS.forEach(name => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.setAttribute('aria-pressed', selected.has(name));
+        b.innerHTML = `<span class="ic">${HOME_ICON}</span><span class="label">${name}</span>`;
+        b.addEventListener('click', () => toggleCorridor(name, b));
+        chipsEl.appendChild(b);
+        if (name === SEAT_CORRIDOR) seatChip = b;
+    });
+
+    function refreshForm() {
+        continueBtn.disabled = selected.size === 0;
+        noteEl.textContent = selected.size ? `${selected.size} of ${MAX} selected: ${[...selected].join(', ')}` : '';
+    }
+    refreshForm();
+
+    let warnTimer;
+    function toggleCorridor(name, el) {
+        if (selected.has(name)) {
+            selected.delete(name);
+            el.setAttribute('aria-pressed', 'false');
+            react('Okay, removed ' + name);
+        } else if (selected.size >= MAX) {
+            el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+            subEl.classList.add('warn'); subEl.textContent = 'You can pick up to 3 corridors only.';
+            clearTimeout(warnTimer);
+            warnTimer = setTimeout(() => { subEl.classList.remove('warn'); subEl.textContent = 'Pick up to 3 corridors.'; }, 2200);
+            react('Only 3 allowed!');
+        } else {
+            selected.add(name);
+            el.setAttribute('aria-pressed', 'true');
+            react(name === SEAT_CORRIDOR ? 'My favourite spot!' : name + ' — great choice!');
+        }
+        refreshForm();
+    }
+    continueBtn.addEventListener('click', () => react('All set! 🎉'));
+    document.getElementById('btn-back').addEventListener('click', () => react('Going back…'));
+
+    const bubbleEl = document.getElementById('bubble');
+    let bubbleTimer;
+    function say(text, ms = 2400) {
+        bubbleEl.textContent = text;
+        bubbleEl.classList.add('show');
+        clearTimeout(bubbleTimer);
+        bubbleTimer = setTimeout(() => bubbleEl.classList.remove('show'), ms);
+    }
+
+    // ==================================================================
+    // 3D overlay — orthographic camera, 1 world unit = 1 CSS pixel
+    // (world x = screen x, world y = -screen y)
+    // ==================================================================
+    const canvas = document.getElementById('overlay');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setClearColor(0x000000, 0);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.NoToneMapping;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(0, 1, 0, -1, 1, 5000);
+    camera.position.set(0, 0, 2000);
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xf3e3c8, 0.3);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.06);
+    const dirLight = new THREE.DirectionalLight(0xfff4e6, 0.42);
+    dirLight.position.set(1.5, 4, 3);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    rimLight.position.set(-3, 3, -3);
+    scene.add(hemiLight, ambientLight, dirLight, rimLight);
+
+    function fitViewport() {
+        const w = window.innerWidth, h = window.innerHeight;
+        renderer.setSize(w, h, false);
+        camera.left = 0; camera.right = w; camera.top = 0; camera.bottom = -h;
+        camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', fitViewport);
+    fitViewport();
+
+    // soft contact shadow
+    const shadowTex = (() => {
+        const c = document.createElement('canvas'); c.width = c.height = 128;
+        const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gr.addColorStop(0, 'rgba(60,40,10,0.55)'); gr.addColorStop(1, 'rgba(60,40,10,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(c);
+    })();
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+    shadow.renderOrder = -1;
+    shadow.position.z = -900;
+    shadow.visible = false;
+    scene.add(shadow);
+
+    function setLightingProfile() {}
+
+
+        // ------------------------------------------------------------------
+        // Reference colors (from Meshy_AI_character_front/back_view.png)
+        // ------------------------------------------------------------------
+        const C = {};
+        const PALETTE = {
+            skin: 0xf0a585, ear: 0xec9476, nose: 0xe8806c, tattoo: 0x3b2a26,
+            beard: 0xe9e5de, brow: 0x5a3622, frame: 0x121214, gold: 0xd4a43c,
+            hairBase: 0x7a4024, hairGrey: 0xcfc6bb, hairCrimson: 0xb81f3c, hairRed: 0xe2352a,
+            hairOrange: 0xf0862a, hairYellow: 0xf7c447,
+            jacket: 0xc9222a, jacketRib: 0xa81b22, tee: 0x17171a, zip: 0xb89448,
+            pants: 0x1d1c20, pantsCuff: 0x29282d, sockY: 0xf2c230, sockB: 0x3a6cc8, sockR: 0xd8413a,
+            shoe: 0x19191c, sole: 0xece5d6, lace: 0xf1eee8, watch: 0x101012,
+        };
+        for (const k in PALETTE) C[k] = new THREE.Color(PALETTE[k]).convertSRGBToLinear();
+
+        const tmpCol = new THREE.Color();
+        const clamp01 = (v) => Math.max(0, Math.min(1, v));
+        const smooth = (a, b, v) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t); };
+        const hash = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
+        const tattooAt = (x, y, z) => Math.sin(x * 95 + Math.sin(y * 70) * 2.2) * Math.sin(y * 115 + z * 60 + Math.sin(x * 40)) > 0.5;
+
+        // x,y,z are "native" coordinates: height spans y = -1 (soles) .. +1 (hair tip), +z = front, +x = character's left
+        function referenceColor(x, y, z, out) {
+            const ax = Math.abs(x);
+            let c;
+            if (y < -0.80) {                                   // shoes
+                if (y < -0.935) c = C.sole;
+                else if (y > -0.885 && z > 0.06 && Math.abs(ax - 0.15) < 0.028) c = C.lace;
+                else c = C.shoe;
+            } else if (y < -0.715) {                           // striped socks
+                c = [C.sockY, C.sockB, C.sockR][Math.floor((-0.715 - y) / 0.017) % 3];
+            } else if (y < 0.04 && y > -0.42 && ax > 0.222) {  // forearms + hands
+                if (x > 0 && y > -0.125 && y < -0.072) c = C.watch;
+                else if (y > -0.075 && tattooAt(x, y, z)) c = C.tattoo;
+                else c = C.skin;
+            } else {
+                const hem = -0.075 - 0.035 * smooth(0.05, -0.08, z);  // jacket hem lower at the back
+                if (y < hem) {                                  // pants
+                    c = y < -0.64 ? C.pantsCuff : C.pants;
+                } else if (y < 0.345 || (y < 0.42 && ax > 0.095) || (y < 0.405 && z < 0.03)) {   // jacket
+                    if (z > 0.04 && ax < 0.088 && y < 0.345) {
+                        c = (x > -0.04 && x < 0.004 && y > 0.15 && y < 0.215) ? C.gold : C.tee;
+                    } else if (z > 0.04 && ax < 0.102 && y < 0.345) c = C.zip;
+                    else if (y < hem + 0.045 || (ax > 0.215 && y < 0.095) || (y > 0.335 && ax < 0.095 && z < 0.04)) c = C.jacketRib;
+                    else if (y > 0.335 && ax < 0.095) c = C.tee;
+                    else c = C.jacket;
+                } else if (y > 0.35 && y < 0.60 && ax < 0.08 && z > (y < 0.47 ? 0.13 : 0.10)) {
+                    c = C.beard;
+                } else if (y > 0.43 && y < 0.55 && ax > 0.12) {
+                    c = C.gold;                                 // hoop earrings
+                } else if (y < 0.47) {
+                    c = tattooAt(x, y, z) ? C.tattoo : C.skin;  // tattooed neck
+                } else if (y > 0.585 && y < 0.70 && ax < 0.04 && z > 0.16) {
+                    c = C.nose;
+                } else if (y > 0.67 && y < 0.73 && z > 0.14) {
+                    c = C.frame;                                // glasses
+                } else if (y > 0.585 && y < 0.665 && ax < 0.045 && z > 0.165) {
+                    c = C.nose;
+                } else if (y > 0.728 && y < 0.758 && z > 0.10 && ax > 0.015 && ax < 0.12) {
+                    c = C.brow;
+                } else if (y > 0.80 || (y > 0.785 && z > -0.02)) {
+                    // colourful mohawk: brown roots -> crimson / red / orange / yellow tips
+                    const t = Math.pow(clamp01((y - 0.78) / 0.18), 0.8);
+                    const s = clamp01((x + 0.12) / 0.24);
+                    if (s < 0.35) tmpCol.copy(C.hairCrimson).lerp(C.hairRed, s / 0.35);
+                    else if (s < 0.7) tmpCol.copy(C.hairRed).lerp(C.hairOrange, (s - 0.35) / 0.35);
+                    else tmpCol.copy(C.hairOrange).lerp(C.hairYellow, (s - 0.7) / 0.3);
+                    const back = z < -0.08 ? 0.55 : 1.0;
+                    out.copy(C.hairBase).lerp(tmpCol, t * back);
+                    return jitter(out, x, y, z, 0.08);
+                } else if (z < -0.05 && y > 0.52 && ax < 0.135) {
+                    c = y > 0.76 ? C.hairBase : C.hairGrey;     // back of head: grey undercut
+                } else if (y > 0.68 && ax > 0.10 && z < 0.06) {
+                    c = C.hairGrey;                             // grey sides
+                } else if (ax > 0.13 && y < 0.69) {
+                    c = C.ear;
+                } else {
+                    c = C.skin;
+                }
+            }
+            out.copy(c);
+            return jitter(out, x, y, z, 0.05);
+        }
+        function jitter(col, x, y, z, amt) {
+            const f = 1 + (hash(x, y, z) - 0.5) * amt;
+            col.r *= f; col.g *= f; col.b *= f;
+            return col;
+        }
+
+        // ------------------------------------------------------------------
+        // Auto-rig: skeleton layout in native coordinates (measured from the model)
+        // ------------------------------------------------------------------
+        const JOINTS = [
+            // name, parent, x, y, z   (x for left side; right side mirrored)
+            ['hips',       null,     0.000, -0.20,  0.01],
+            ['spine',      'hips',   0.000, -0.02,  0.01],
+            ['chest',      'spine',  0.000,  0.20,  0.00],
+            ['neck',       'chest',  0.000,  0.40, -0.02],
+            ['head',       'neck',   0.000,  0.48,  0.00],
+            ['upperArm_L', 'chest',  0.180,  0.30, -0.05],
+            ['foreArm_L',  'upperArm_L', 0.275, 0.07, -0.06],
+            ['hand_L',     'foreArm_L',  0.335, -0.10, 0.00],
+            ['upperArm_R', 'chest', -0.180,  0.30, -0.05],
+            ['foreArm_R',  'upperArm_R', -0.275, 0.07, -0.06],
+            ['hand_R',     'foreArm_R', -0.335, -0.10, 0.00],
+            ['thigh_L',    'hips',   0.105, -0.20,  0.01],
+            ['shin_L',     'thigh_L', 0.120, -0.48, -0.02],
+            ['foot_L',     'shin_L',  0.135, -0.81, -0.04],
+            ['thigh_R',    'hips',  -0.105, -0.20,  0.01],
+            ['shin_R',     'thigh_R', -0.120, -0.48, -0.02],
+            ['foot_R',     'shin_R', -0.135, -0.81, -0.04],
+        ];
+        const JI = {}; JOINTS.forEach((j, i) => JI[j[0]] = i);
+        const jp = (name) => { const j = JOINTS[JI[name]]; return [j[2], j[3], j[4]]; };
+
+        // capsule segments used for skin weights: [bone, start, end, radius, kind, side]
+        const SEGMENTS = [
+            ['hips',  jp('hips'),  jp('spine'), 0.17, 'torso', 0],
+            ['spine', jp('spine'), jp('chest'), 0.19, 'torso', 0],
+            ['chest', jp('chest'), jp('neck'),  0.18, 'torso', 0],
+            ['neck',  jp('neck'),  jp('head'),  0.07, 'torso', 0],
+            ['head',  jp('head'),  [0, 0.90, 0], 0.20, 'head', 0],
+        ];
+        for (const [s, side] of [['L', 1], ['R', -1]]) {
+            SEGMENTS.push(
+                ['upperArm_' + s, jp('upperArm_' + s), jp('foreArm_' + s), 0.065, 'arm', side],
+                ['foreArm_' + s,  jp('foreArm_' + s),  jp('hand_' + s),    0.055, 'arm', side],
+                ['hand_' + s,     jp('hand_' + s),     [0.34 * side, -0.30, 0.05], 0.055, 'arm', side],
+                ['thigh_' + s,    jp('thigh_' + s),    jp('shin_' + s),    0.095, 'leg', side],
+                ['shin_' + s,     jp('shin_' + s),     jp('foot_' + s),    0.075, 'leg', side],
+                ['foot_' + s,     jp('foot_' + s),     [0.15 * side, -0.95, 0.15], 0.085, 'leg', side],
+            );
+        }
+        SEGMENTS.forEach(s => s[0] = JI[s[0]]);
+
+        function segDist(px, py, pz, a, b) {
+            const abx = b[0] - a[0], aby = b[1] - a[1], abz = b[2] - a[2];
+            const apx = px - a[0], apy = py - a[1], apz = pz - a[2];
+            const t = clamp01((apx * abx + apy * aby + apz * abz) / (abx * abx + aby * aby + abz * abz));
+            const dx = apx - abx * t, dy = apy - aby * t, dz = apz - abz * t;
+            return Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        function computeSkin(x, y, z, outIdx, outW, o) {
+            const ax = Math.abs(x), side = x >= 0 ? 1 : -1, sfx = side > 0 ? '_L' : '_R';
+            const single = (name) => { outIdx[o] = JI[name]; outW[o] = 1; outIdx[o+1] = outIdx[o+2] = outIdx[o+3] = 0; outW[o+1] = outW[o+2] = outW[o+3] = 0; };
+
+            if (y > 0.50 || (y > 0.35 && z > 0.13 && ax < 0.10) || (y > 0.42 && y < 0.56 && ax > 0.115)) return single('head');
+            if (y < -0.86) return single('foot' + sfx);
+
+            const bi = [0, 0, 0, 0], bw = [0, 0, 0, 0];
+            for (let s = 0; s < SEGMENTS.length; s++) {
+                const [bone, a, b, r, kind, sd] = SEGMENTS[s];
+                let gate = 1;
+                if (kind === 'arm') { if (sd * x < 0.10 || y > 0.42) continue; }
+                else if (kind === 'leg') { if (sd * x < -0.03 || y > 0.0) continue; gate = smooth(-0.03, 0.03, sd * x); }
+                else if (kind === 'head') { if (y < 0.36) continue; }
+                const e = segDist(x, y, z, a, b) / r;
+                const w = gate / Math.pow(e + 0.15, 6);
+                // insert into top-4
+                for (let k = 0; k < 4; k++) {
+                    if (w > bw[k]) {
+                        for (let m = 3; m > k; m--) { bw[m] = bw[m-1]; bi[m] = bi[m-1]; }
+                        bw[k] = w; bi[k] = bone; break;
+                    }
+                }
+            }
+            const sum = bw[0] + bw[1] + bw[2] + bw[3] || 1;
+            for (let k = 0; k < 4; k++) { outIdx[o+k] = bi[k]; outW[o+k] = bw[k] / sum; }
+        }
+
+        // Copy geometry into plain float attributes with the mesh's world transform baked in
+        function bakeGeometry(mesh) {
+            const src = mesh.geometry;
+            const g = new THREE.BufferGeometry();
+            const getters = ['getX', 'getY', 'getZ', 'getW'];
+            const toFloat = (attr) => {
+                const n = attr.count, k = attr.itemSize, out = new Float32Array(n * k);
+                const arr = attr.isInterleavedBufferAttribute ? attr.data.array : attr.array;
+                let div = 1;
+                if (attr.normalized) {
+                    if (arr instanceof Int8Array) div = 127; else if (arr instanceof Uint8Array) div = 255;
+                    else if (arr instanceof Int16Array) div = 32767; else if (arr instanceof Uint16Array) div = 65535;
+                }
+                for (let i = 0; i < n; i++) for (let c = 0; c < k; c++) {
+                    let v = attr[getters[c]](i);
+                    if (div !== 1) v = Math.max(v / div, -1);
+                    out[i * k + c] = v;
+                }
+                return new THREE.BufferAttribute(out, k);
+            };
+            g.setAttribute('position', toFloat(src.attributes.position));
+            if (src.attributes.normal) g.setAttribute('normal', toFloat(src.attributes.normal));
+            if (src.attributes.uv) g.setAttribute('uv', toFloat(src.attributes.uv));
+            if (src.attributes.color) g.setAttribute('color', toFloat(src.attributes.color));
+            if (src.index) g.setIndex(new THREE.BufferAttribute(src.index.array.slice(), 1));
+            g.applyMatrix4(mesh.matrixWorld);
+            if (!g.attributes.normal) g.computeVertexNormals();
+            return g;
+        }
+
+        function buildRiggedCharacter(gltfScene) {
+            gltfScene.updateMatrixWorld(true);
+            const parts = [];
+            gltfScene.traverse((ch) => { if (ch.isMesh) parts.push({ geo: bakeGeometry(ch), mat: ch.material }); });
+
+            const bbox = new THREE.Box3();
+            parts.forEach(p => { p.geo.computeBoundingBox(); bbox.union(p.geo.boundingBox); });
+            const H = bbox.max.y - bbox.min.y, s = H / 2;
+            const cx = (bbox.min.x + bbox.max.x) / 2, cz = (bbox.min.z + bbox.max.z) / 2, y0 = bbox.min.y;
+            const fromNative = (n) => new THREE.Vector3(cx + n[0] * s, y0 + (n[1] + 1) * s, cz + n[2] * s);
+
+            // bones
+            const bones = JOINTS.map(j => { const b = new THREE.Bone(); b.name = j[0]; return b; });
+            JOINTS.forEach((j, i) => {
+                const pos = fromNative([j[2], j[3], j[4]]);
+                if (j[1]) {
+                    const parentPos = fromNative(jp(j[1]));
+                    bones[i].position.copy(pos.sub(parentPos));
+                    bones[JI[j[1]]].add(bones[i]);
+                } else bones[i].position.copy(pos);
+            });
+
+            const group = new THREE.Group();
+            group.add(bones[0]);
+            group.updateMatrixWorld(true);
+            const skeleton = new THREE.Skeleton(bones);
+
+            const meshes = [];
+            let colored = false;
+            parts.forEach(({ geo, mat }) => {
+                const pos = geo.attributes.position, n = pos.count;
+                const skinIdx = new Uint16Array(n * 4), skinW = new Float32Array(n * 4);
+                const needColors = !(mat && mat.map) && !geo.attributes.color;
+                const colors = needColors ? new Float32Array(n * 3) : null;
+                const col = new THREE.Color();
+                for (let i = 0; i < n; i++) {
+                    const x = (pos.getX(i) - cx) / s, y = (pos.getY(i) - y0) / s - 1, z = (pos.getZ(i) - cz) / s;
+                    computeSkin(x, y, z, skinIdx, skinW, i * 4);
+                    if (colors) { referenceColor(x, y, z, col); colors[i*3] = col.r; colors[i*3+1] = col.g; colors[i*3+2] = col.b; }
+                }
+                geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIdx, 4));
+                geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinW, 4));
+
+                let material;
+                if (colors) {
+                    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                    material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.0, skinning: true });
+                    colored = true;
+                } else {
+                    material = (mat || new THREE.MeshStandardMaterial()).clone();
+                    material.skinning = true;
+                    if (geo.attributes.color && !mat.map) material.vertexColors = true;
+                    if (material.map) {
+                        // reference-projected textures already contain studio lighting:
+                        // lift them so the scene lights don't double-darken them
+                        material.emissive = new THREE.Color(0xffffff);
+                        material.emissiveMap = material.map;
+                        material.emissiveIntensity = 0.45;
+                        material.roughness = 0.85;
+                        material.metalness = 0.0;
+                        material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                    }
+                }
+                const sm = new THREE.SkinnedMesh(geo, material);
+                sm.castShadow = sm.receiveShadow = true;
+                sm.frustumCulled = false;
+                sm.userData.origMaterial = material;
+                group.add(sm);
+                sm.bind(skeleton);
+                meshes.push(sm);
+            });
+
+            const b = {}; bones.forEach(bn => b[bn.name] = bn);
+            const rest = {}; bones.forEach(bn => rest[bn.name] = bn.position.clone());
+
+            // leg vectors (native) for foot grounding
+            const sub = (a, c) => [a[0] - c[0], a[1] - c[1], a[2] - c[2]];
+            const legs = {
+                L: { v1: sub(jp('shin_L'), jp('thigh_L')), v2: sub(jp('foot_L'), jp('shin_L')), prevZ: null },
+                R: { v1: sub(jp('shin_R'), jp('thigh_R')), v2: sub(jp('foot_R'), jp('shin_R')), prevZ: null },
+            };
+            return { group, bones: b, rest, meshes, s, H, bbox, cx, cz, legs, colored, groundSpeed: 0 };
+        }
+
+    // ==================================================================
+    // Loading: bundled character_data.js (works from file://) → fetch → file picker
+    // ==================================================================
+    const card = document.getElementById('model-card');
+    const cardTitle = document.getElementById('card-title');
+    const cardText = document.getElementById('card-text');
+    const fileInput = document.getElementById('file-input');
+    document.getElementById('btn-load').addEventListener('click', () => fileInput.click());
+
+    const gltfLoader = new THREE.GLTFLoader();
+    const dracoLoader = new THREE.DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+    gltfLoader.setDRACOLoader(dracoLoader);
+    if (typeof MeshoptDecoder !== 'undefined') gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+
+    function showCard(title, text, withButton = true) {
+        cardTitle.textContent = title;
+        cardText.textContent = text;
+        document.getElementById('btn-load').classList.toggle('hidden', !withButton);
+        card.classList.remove('hidden');
+    }
+
+    let rig = null, walker = null;
+    const state = { materialMode: 'pbr' };
+
+    function parseModel(buffer) {
+        showCard('Preparing character…', 'Rigging the 3D model, one moment.', false);
+        gltfLoader.parse(buffer, '', (gltf) => {
+            setTimeout(() => {
+                try {
+                    const r = buildRiggedCharacter(gltf.scene);
+                    const sf = MODEL_UNITS / r.H;
+                    r.scale = sf;
+                    r.group.scale.setScalar(sf);
+                    r.group.position.set(-r.cx * sf, -r.bbox.min.y * sf, -r.cz * sf);
+                    if (walker) scene.remove(walker);
+                    walker = new THREE.Group();
+                    walker.rotation.order = 'YXZ';
+                    walker.add(r.group);
+                    scene.add(walker);
+                    rig = r;
+                    if (r.colored) {
+                        hemiLight.intensity = 0.9; dirLight.intensity = 1.6;
+                        showCard('This is the untextured model', 'This file has no textures. Use character_textured.glb for the real look.');
+                    } else card.classList.add('hidden');
+                    startSequence();
+                } catch (e) { console.error(e); showCard('Could not rig this file', e.message); }
+            }, 30);
+        }, (err) => { console.error(err); showCard('That file could not be read', 'Choose character_textured.glb.'); });
+    }
+
+    function loadScript(src) {
+        return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    }
+    async function base64ToBuffer(b64) {
+        try { return await (await fetch('data:application/octet-stream;base64,' + b64)).arrayBuffer(); }
+        catch (e) { const bin = atob(b64); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out.buffer; }
+    }
+
+    async function boot() {
+        showCard('Loading character…', 'Loading the 3D model.', false);
+        try {
+            await loadScript('character_data.js');
+            if (window.CHARACTER_GLB_BASE64) {
+                const buf = await base64ToBuffer(window.CHARACTER_GLB_BASE64);
+                window.CHARACTER_GLB_BASE64 = null;
+                return parseModel(buf);
+            }
+        } catch (e) {}
+        try {
+            const res = await fetch('character_textured.glb');
+            if (res.ok) return parseModel(await res.arrayBuffer());
+        } catch (e) {}
+        showCard('Load the 3D character', 'character_data.js was not found next to this page. Choose character_textured.glb (or drop it here).');
+    }
+    boot();
+
+    fileInput.addEventListener('change', async () => { if (fileInput.files[0]) parseModel(await fileInput.files[0].arrayBuffer()); fileInput.value = ''; });
+    window.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); card.classList.add('drag'); } });
+    window.addEventListener('dragleave', () => card.classList.remove('drag'));
+    window.addEventListener('drop', async (e) => {
+        if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+        e.preventDefault(); card.classList.remove('drag');
+        parseModel(await e.dataTransfer.files[0].arrayBuffer());
+    });
+    // ==================================================================
+    // Poses
+    // ==================================================================
+        function poseTargets(mode, k, p, t) {
+            const T = {}; BONE_NAMES.forEach(n => T[n] = [0, 0, 0]);
+            const hipsOff = [0, 0, 0];
+            const sin = Math.sin, cos = Math.cos, max = Math.max;
+
+            if (mode === 'walk') {
+                const A = Math.min(0.75, 0.40 * k);            // thigh swing
+                const armA = Math.min(0.7, 0.30 * k);
+                for (const [s, q] of [['L', p], ['R', p + Math.PI]]) {
+                    const thigh = -A * sin(q) - 0.04;
+                    const knee = 0.08 + Math.min(1.3, 0.95 * k) * Math.pow(max(0, cos(q + 0.35)), 2)
+                               + 0.10 * k * Math.pow(max(0, sin(q - Math.PI / 2)), 2);       // loading-response flex
+                    const toeOff = 0.38 * k * max(0, -sin(q)) * max(0, -cos(q)) * 2;
+                    const heelStrike = -0.22 * k * Math.pow(max(0, sin(q)), 3);
+                    T['thigh_' + s] = [thigh, 0, 0];
+                    T['shin_' + s] = [knee, 0, 0];
+                    T['foot_' + s] = [-(thigh + knee) + toeOff * 0.6 + heelStrike, 0, 0];
+                }
+                // arms swing opposite to legs, elbows bend more when the arm swings forward
+                T.upperArm_L = [armA * sin(p), 0, -0.10];
+                T.upperArm_R = [-armA * sin(p), 0, 0.10];
+                T.foreArm_L = [-(0.18 + 0.30 * k * max(0, -sin(p))), 0, 0];
+                T.foreArm_R = [-(0.18 + 0.30 * k * max(0, sin(p))), 0, 0];
+                T.hand_L = [-0.08, 0, 0]; T.hand_R = [-0.08, 0, 0];
+                // pelvis twist, counter-rotating shoulders, steady head
+                T.hips = [0, -0.07 * k * sin(p), 0.03 * k * sin(2 * p)];
+                T.spine = [0.05, 0.08 * k * sin(p), -0.02 * k * sin(2 * p)];
+                T.chest = [0.02 + 0.015 * cos(2 * p), 0.07 * k * sin(p), -0.01 * k * sin(2 * p)];
+                T.neck = [-0.04, -0.08 * k * sin(p), 0];
+                T.head = [0.02 * cos(2 * p), 0, 0];
+                hipsOff[0] = -0.012 * k * cos(p);               // lateral weight shift
+            } else if (mode === 'idle') {
+                const br = sin(t * 1.6);
+                T.chest = [0.015 * br, 0, 0];
+                T.spine = [0.01, 0.03 * sin(t * 0.35), 0];
+                T.upperArm_L = [0.02 * br, 0, -0.10]; T.upperArm_R = [0.02 * br, 0, 0.10];
+                T.foreArm_L = [-0.12, 0, 0]; T.foreArm_R = [-0.12, 0, 0];
+                T.hips = [0, 0, 0.02 * sin(t * 0.5)];
+                T.thigh_L = [0, 0, -0.02 * sin(t * 0.5)]; T.thigh_R = [0, 0, -0.02 * sin(t * 0.5)];
+                T.head = [0.03 * sin(t * 0.4), 0.18 * sin(t * 0.27), 0.03 * sin(t * 0.33)];
+                hipsOff[0] = 0.01 * sin(t * 0.5);
+            } else if (mode === 'talk') {
+                const g = sin(t * 2.4), g2 = sin(t * 1.3 + 1);
+                T.spine = [0.03, 0.06 * g2, 0];
+                T.chest = [0.02 * sin(t * 1.6), 0.04 * g2, 0];
+                T.head = [0.06 * sin(t * 3.1) * k, 0.12 * sin(t * 0.9), 0.05 * sin(t * 1.7)];
+                T.neck = [0.03 * sin(t * 2.2), 0, 0];
+                T.upperArm_R = [-0.35 - 0.12 * g * k, 0, 0.18];
+                T.foreArm_R = [-(1.05 + 0.25 * g * k), 0.3, 0];
+                T.hand_R = [-0.2, 0.3 * sin(t * 2.4 + 0.5), 0];
+                T.upperArm_L = [-0.15 - 0.08 * g2 * k, 0, -0.12];
+                T.foreArm_L = [-(0.55 + 0.2 * g2 * k), -0.2, 0];
+                T.hand_L = [-0.1, -0.2 * g2, 0];
+            }
+            // 'lay' (rest pose) keeps the bind pose
+            return { T, hipsOff };
+        }
+
+        // native-space ankle position of a leg for given thigh/knee pitch
+        function ankleOffset(leg, a1, a2) {
+            const rot = (v, a) => [v[1] * Math.cos(a) - v[2] * Math.sin(a), v[1] * Math.sin(a) + v[2] * Math.cos(a)];
+            const p1 = rot(leg.v1, a1), p2 = rot(leg.v2, a1 + a2);
+            return { y: p1[0] + p2[0], z: p1[1] + p2[1] };
+        }
+
+    function extraPose(mode, t, talkT) {
+        const T = {}; JOINTS.forEach(j => T[j[0]] = [0, 0, 0]);
+        const s = Math.sin, br = s(t * 1.5);
+        if (mode === 'lie') {
+            // relaxed: on the right side, propped on the right elbow, head resting in the hand,
+            // top (left) knee bent forward, left hand resting on the hip
+            Object.assign(T, LIE_POSE);
+            T.chest = [LIE_POSE.chest[0] + 0.02 * br, LIE_POSE.chest[1], LIE_POSE.chest[2]];
+            T.foot_L = [LIE_POSE.foot_L[0] + 0.18 * s(t * 1.6), 0, 0];          // lazy foot wiggle
+            T.head = [LIE_POSE.head[0] + 0.02 * s(t * 0.7), LIE_POSE.head[1], LIE_POSE.head[2]];
+        } else if (mode === 'floorSit') {
+            // sit-up: torso comes up, legs stay flat, hands push off the floor behind
+            T.spine = [0.25, 0, 0]; T.chest = [0.1, 0, 0]; T.neck = [-0.1, 0, 0];
+            T.upperArm_L = [0.55, 0, -0.15]; T.upperArm_R = [0.55, 0, 0.15];
+            T.foreArm_L = [-0.15, 0, 0]; T.foreArm_R = [-0.15, 0, 0];
+            T.shin_L = [0.05, 0, 0]; T.shin_R = [0.25, 0, 0];
+            T.foot_L = [0.3, 0, 0]; T.foot_R = [0.3, 0, 0];
+        } else if (mode === 'jump') {
+            T.thigh_L = [-0.55, 0, 0.04]; T.thigh_R = [-0.35, 0, -0.04];
+            T.shin_L = [0.95, 0, 0]; T.shin_R = [0.7, 0, 0];
+            T.foot_L = [-0.2, 0, 0]; T.foot_R = [-0.15, 0, 0];
+            T.upperArm_L = [-0.7, 0, -0.45]; T.upperArm_R = [-0.7, 0, 0.45];
+            T.foreArm_L = [-0.5, 0, 0]; T.foreArm_R = [-0.5, 0, 0];
+            T.spine = [0.08, 0, 0];
+        } else if (mode === 'crouch') {
+            T.thigh_L = [-0.6, 0, 0.05]; T.thigh_R = [-0.6, 0, -0.05];
+            T.shin_L = [1.1, 0, 0]; T.shin_R = [1.1, 0, 0];
+            T.foot_L = [-0.5, 0, 0]; T.foot_R = [-0.5, 0, 0];
+            T.spine = [0.2, 0, 0];
+            T.upperArm_L = [-0.35, 0, -0.15]; T.upperArm_R = [-0.35, 0, 0.15];
+            T.foreArm_L = [-0.4, 0, 0]; T.foreArm_R = [-0.4, 0, 0];
+        } else if (mode === 'dangle') {
+            // held by the collar: arms flail a little, legs hang and kick
+            T.upperArm_L = [-0.3 + 0.25 * s(t * 5), 0, 0.55 + 0.15 * s(t * 4)];
+            T.upperArm_R = [-0.3 + 0.25 * s(t * 5 + 1.5), 0, -0.55 - 0.15 * s(t * 4 + 1)];
+            T.foreArm_L = [-0.7, 0, 0]; T.foreArm_R = [-0.7, 0, 0];
+            T.thigh_L = [-0.25 + 0.3 * s(t * 6), 0, 0.06]; T.thigh_R = [-0.25 + 0.3 * s(t * 6 + Math.PI), 0, -0.06];
+            T.shin_L = [0.5 + 0.3 * s(t * 6 + 0.8), 0, 0]; T.shin_R = [0.5 + 0.3 * s(t * 6 + Math.PI + 0.8), 0, 0];
+            T.foot_L = [0.4, 0, 0]; T.foot_R = [0.4, 0, 0];
+            T.neck = [0.15, 0, 0]; T.head = [0.2, 0.2 * s(t * 2), 0];
+        } else if (mode === 'sit' || mode === 'sitTalk') {
+            T.thigh_L = [-1.5, 0, 0.07]; T.thigh_R = [-1.5, 0, -0.07];
+            T.shin_L = [1.45 + 0.22 * s(t * 2.1), 0, 0]; T.shin_R = [1.45 + 0.22 * s(t * 2.1 + 2.2), 0, 0];
+            T.foot_L = [0.15, 0, 0]; T.foot_R = [0.15, 0, 0];
+            T.spine = [0.08, 0, 0]; T.chest = [0.03 + 0.015 * br, 0, 0];
+            T.upperArm_L = [-0.25, 0, -0.32]; T.upperArm_R = [-0.25, 0, 0.32];
+            T.foreArm_L = [-0.55, 0, 0]; T.foreArm_R = [-0.55, 0, 0];
+            T.head = [0.04 * s(t * 0.6), 0.28 * s(t * 0.37), 0.04 * s(t * 0.5)];
+            if (mode === 'sitTalk') {
+                for (const b of ['spine', 'chest', 'neck', 'head', 'upperArm_L', 'upperArm_R', 'foreArm_L', 'foreArm_R', 'hand_L', 'hand_R']) T[b] = talkT[b];
+                T.spine = [talkT.spine[0] + 0.05, talkT.spine[1], talkT.spine[2]];
+            }
+        }
+        return T;
+    }
+
+    // Lying pose: on his back, one hand under the head, near (right) knee up — seen in profile
+    let LIE_POSE = {
+        hips: [0, 0, 0], spine: [0, 0, 0], chest: [0.03, 0, 0], neck: [0.30, -0.25, 0], head: [0.12, -0.40, 0],
+        upperArm_L: [-2.3, 0, 0.2], foreArm_L: [-1.5, 0, 0], hand_L: [0, 0, 0],      // far hand under the head
+        upperArm_R: [0.05, 0, 0.30], foreArm_R: [-0.5, 0, 0.3], hand_R: [0, 0, 0],   // near hand resting on the thigh
+        thigh_R: [-1.05, 0, -0.06], shin_R: [1.85, 0, 0], foot_R: [0.85, 0, 0],
+        thigh_L: [-0.06, 0, 0.03], shin_L: [0.10, 0, 0], foot_L: [-0.15, 0, 0],
+    };
+    const LIE_CONTACTS = [['hips', 0.13], ['chest', 0.14], ['foot_L', 0.08], ['foot_R', 0.19], ['hand_L', 0.05], ['hand_R', 0.05], ['upperArm_L', 0.07], ['upperArm_R', 0.07]];
+
+    // ==================================================================
+    // Choreography + interaction
+    //   auto:   lie on the heading → get up → walk → hop → sit on "Golf Course Extension Road"
+    //   drag:   pick him up anywhere, he dangles and drops onto whatever is below
+    //   double-click: stop ⇄ walk
+    // ==================================================================
+    const MODEL_UNITS = 1.75;
+    const SIT_HEADING = -0.6;
+    const BONE_NAMES = JOINTS.map(j => j[0]);
+    const titleEl = document.getElementById('title-text');
+    const clock = new THREE.Clock();
+    const TIME_SCALE = Math.max(0.1, Math.min(20, +(new URLSearchParams(location.search).get('speed') || 1)));   // ?speed=… for testing
+    let time = 0, walkPhase = 0, heading = 0, rotZ = 0, rotZVel = 0;
+    let seq = { st: 'wait' };
+    let behavior = 'auto';                       // auto | hold | wander
+    let pos = { x: 0, y: 0 };                    // feet position (screen px)
+    let curSurf = { kind: 'title' };
+    let reactUntil = 0, sitAmt = 0, lieAnchorX = 0, lieShift = 0, lieFix = 0;
+    const tagEl = document.querySelector('.tag');
+    const SEAT = { kind: 'el', el: null };
+
+    function metrics() {
+        const fs = parseFloat(getComputedStyle(titleEl).fontSize);
+        const Hpx = Math.max(135, Math.min(250, fs * 8.4));   // character height in px (scales with the heading size)
+        const tr = titleEl.getBoundingClientRect();
+        const cr = seatChip.getBoundingClientRect();
+        return {
+            Hpx, S: Hpx / MODEL_UNITS, fs,
+            textL: tr.left, textR: tr.right, headFloor: tr.top + fs * 0.17,
+            seatX: Math.max(cr.left + cr.width * 0.5, cr.right - Hpx * 0.32),
+        };
+    }
+
+    // ---- walkable surfaces (live DOM rects)
+    const formEl = document.querySelector('.form');   // the floor sits just below the form
+    const SURFACE_SELECTOR = '.chip, .tag, .btn-continue, .btn-back, .progress';
+    function itemRect(s, m) {
+        if (s.kind === 'title') return { top: m.headFloor, left: m.textL, right: m.textR };
+        if (s.kind === 'ground') return { top: Math.min(window.innerHeight - 4, formEl.getBoundingClientRect().bottom + 24), left: 0, right: window.innerWidth };
+        const r = s.el.getBoundingClientRect();
+        return { top: r.top + 1, left: r.left, right: r.right };
+    }
+    // neighbouring elements at the same height (a row of chips) form one walkway
+    function segments(m) {
+        const items = [{ kind: 'title' }, ...[...document.querySelectorAll(SURFACE_SELECTOR)].map(el => ({ kind: 'el', el })), { kind: 'ground' }]
+            .map(ref => Object.assign({ ref }, itemRect(ref, m)))
+            .sort((a, b) => a.top - b.top || a.left - b.left);
+        const segs = [];
+        for (const it of items) {
+            const g = segs.find(sg => Math.abs(sg.top - it.top) < 4 && it.left - sg.right < m.Hpx * 0.35 && sg.left - it.right < m.Hpx * 0.35);
+            if (g) { g.left = Math.min(g.left, it.left); g.right = Math.max(g.right, it.right); g.refs.push(it.ref); }
+            else segs.push({ top: it.top, left: it.left, right: it.right, refs: [it.ref] });
+        }
+        return segs;
+    }
+    function segOf(ref, m, segs) {
+        segs = segs || segments(m);
+        return segs.find(sg => sg.refs.some(r => sameSurf(r, ref))) || segs[segs.length - 1];
+    }
+    function resolveSurf(ref, m) { return segOf(ref, m); }
+    function surfaceBelow(x, y, m, segs) {
+        segs = segs || segments(m);
+        let best = null;
+        for (const sg of segs) if (x >= sg.left + 6 && x <= sg.right - 6 && sg.top >= y - 4 && (!best || sg.top < best.top)) best = sg;
+        return best ? best.refs[0] : { kind: 'ground' };
+    }
+    const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    // choose the next short hop that brings him closer to the seat chip
+    let visited = [];
+    function planNext(m) {
+        const segs = segments(m);
+        const cur = segOf(curSurf, m, segs), seat = segOf(SEAT, m, segs);
+        if (cur === seat) return { target: 'seat', then: 'turn' };
+        const mg = m.Hpx * 0.22, maxH = m.Hpx * 0.85, maxUp = m.Hpx * 1.1, maxDown = m.Hpx * 2.0;
+        const cost = (sg, x) => Math.abs(sg.top - seat.top) + Math.abs(x - m.seatX) * 0.5;
+        let best = null;
+        for (const n of segs) {
+            if (n === cur) continue;
+            const dy = n.top - cur.top;
+            if (Math.abs(dy) < 4 || dy < -maxUp || dy > maxDown) continue;
+            const sL = cur.left + mg, sR = cur.right - mg, nL = n.left + mg, nR = n.right - mg;
+            if (sR < sL || nR < nL) continue;
+            let xh, xl;
+            const oL = Math.max(sL, nL), oR = Math.min(sR, nR);
+            if (oL <= oR) { xh = xl = clampN(m.seatX, oL, oR); }
+            else if (nR < sL) { xh = sL; xl = nR; } else { xh = sR; xl = nL; }
+            if (Math.abs(xl - xh) > maxH) continue;
+            // nothing in between (don't hop through another row)
+            const lo = Math.min(cur.top, n.top), hi = Math.max(cur.top, n.top);
+            if (segs.some(o => o !== cur && o !== n && o.top > lo + 3 && o.top < hi - 3 && xl >= o.left && xl <= o.right)) continue;
+            const c = cost(n, xl) + Math.abs(xh - pos.x) * 0.15 + (visited.includes(n.refs[0]) ? 5000 : 0);
+            if (!best || c < best.c) best = { c, xh, xl, ref: n.refs[0] };
+        }
+        if (!best) best = { xh: clampN(m.seatX, cur.left + mg, cur.right - mg), xl: m.seatX, ref: SEAT };   // last resort
+        return { target: 'point', hx: best.xh, then: 'preHop', hop: { xl: best.xl, ref: best.ref } };
+    }
+    const sameSurf = (a, b) => a.kind === b.kind && (a.kind !== 'el' || a.el === b.el);
+
+    function startSequence() {
+        visited = [];
+        SEAT.el = seatChip;
+        const m = metrics();
+        behavior = 'auto';
+        curSurf = { kind: 'title' };
+        pos = { x: m.textL + m.Hpx * 0.98, y: m.headFloor };
+        heading = Math.PI / 2; rotZ = 0; rotZVel = 0;
+        setState('lie');
+        say('Zzz… 😴', 2600);
+    }
+    function setState(st, extra) { seq = Object.assign({ st, t0: time }, extra || {}); }
+
+    // what to do next when standing on a surface
+    function decide() {
+        if (behavior === 'hold') return setState('hold');
+        if (behavior === 'wander') return setState('wander', { dir: Math.random() < 0.5 ? -1 : 1 });
+        // auto: head for the seat chip
+        setState('walk', planNext(metrics()));
+    }
+
+    function react(text) {
+        say(text);
+        if (seq.st === 'sit' || seq.st === 'hold') reactUntil = time + 2.0;
+    }
+
+    function toggleWalk() {
+        const st = seq.st;
+        if (st === 'drag' || st === 'fall' || st === 'rise' || st === 'standUp') return;
+        if (st === 'lie') { behavior = 'wander'; setState('rise'); say('Okay okay, I\'m up!'); return; }
+        if (st === 'sit') { behavior = 'wander'; setState('standUp'); say('Let\'s walk 🚶'); return; }
+        if (st === 'hold') { behavior = 'wander'; decide(); say('Let\'s walk 🚶'); return; }
+        // moving (walk / wander / hop …) → stop
+        behavior = 'hold';
+        say('Okay, I\'ll stop ✋');
+        if (st !== 'hop' && st !== 'preHop') setState('hold');
+    }
+
+    // ---- pointer: drag + double-click/double-tap
+    const ptr = { down: false, dragging: false, sx: 0, sy: 0, gx: 0, gy: 0, lastTap: 0, suppress: false, vx: 0, lastX: 0, lastT: 0 };
+    const tmpV = new THREE.Vector3();
+    function charRect() {
+        if (!rig) return null;
+        let l = 1e9, r = -1e9, t = 1e9, b = -1e9;
+        const add = (bone, ox, oy, oz) => {
+            tmpV.set(ox * rig.s, oy * rig.s, oz * rig.s);
+            rig.bones[bone].localToWorld(tmpV);
+            l = Math.min(l, tmpV.x); r = Math.max(r, tmpV.x); t = Math.min(t, -tmpV.y); b = Math.max(b, -tmpV.y);
+        };
+        add('head', 0, 0.48, 0); add('head', 0, 0, 0); add('hips', 0, 0, 0); add('chest', 0, 0, 0);
+        for (const sd of ['L', 'R']) { add('hand_' + sd, 0, -0.15, 0); add('foreArm_' + sd, 0, 0, 0); add('shin_' + sd, 0, 0, 0); add('foot_' + sd, 0, -0.15, 0.12); }
+        const pad = metrics().Hpx * 0.07;
+        return { l: l - pad, r: r + pad, t: t - pad, b: b + pad };
+    }
+    function hitChar(x, y) { const r = charRect(); return !!r && x >= r.l && x <= r.r && y >= r.t && y <= r.b; }
+
+    document.addEventListener('pointerdown', (e) => {
+        if (!hitChar(e.clientX, e.clientY)) return;
+        e.preventDefault(); e.stopPropagation();
+        ptr.down = true; ptr.dragging = false; ptr.suppress = true;
+        ptr.sx = e.clientX; ptr.sy = e.clientY; ptr.lastX = e.clientX; ptr.lastT = performance.now(); ptr.vx = 0;
+        document.documentElement.style.cursor = 'grabbing';
+    }, true);
+    window.addEventListener('pointermove', (e) => {
+        if (ptr.down) {
+            if (!ptr.dragging && Math.hypot(e.clientX - ptr.sx, e.clientY - ptr.sy) > 6) {
+                ptr.dragging = true;
+                setState('drag'); sitAmt = 0;
+                say('Whoa! 😵', 1500);
+            }
+            if (ptr.dragging) {
+                const now = performance.now(), dtp = Math.max(1, now - ptr.lastT);
+                ptr.vx = ptr.vx * 0.7 + ((e.clientX - ptr.lastX) / dtp * 1000) * 0.3;
+                ptr.lastX = e.clientX; ptr.lastT = now;
+                ptr.gx = e.clientX; ptr.gy = e.clientY;
+            }
+        } else if (rig) {
+            document.documentElement.style.cursor = hitChar(e.clientX, e.clientY) ? 'grab' : '';
+        }
+    });
+    window.addEventListener('pointerup', (e) => {
+        if (!ptr.down) return;
+        ptr.down = false;
+        document.documentElement.style.cursor = hitChar(e.clientX, e.clientY) ? 'grab' : '';
+        if (ptr.dragging) {
+            ptr.dragging = false;
+            setState('fall', { vy: 0 });
+            ptr.lastTap = 0;
+        } else {
+            const now = performance.now();
+            if (now - ptr.lastTap < 380) { ptr.lastTap = 0; toggleWalk(); }
+            else ptr.lastTap = now;
+        }
+    });
+    // a press on the character must not click the chip/button underneath it
+    document.addEventListener('click', (e) => { if (ptr.suppress) { ptr.suppress = false; e.preventDefault(); e.stopPropagation(); } }, true);
+    document.addEventListener('pointerdown', () => { if (!ptr.down) ptr.suppress = false; });
+    document.addEventListener('touchstart', (e) => { const t = e.touches[0]; if (t && hitChar(t.clientX, t.clientY)) e.preventDefault(); }, { capture: true, passive: false });
+    document.addEventListener('selectstart', (e) => { if (ptr.down) e.preventDefault(); });
+    document.addEventListener('dblclick', (e) => { if (hitChar(e.clientX, e.clientY)) e.preventDefault(); }, true);
+
+    const ease = (u) => { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); };
+
+    // keep chosen body parts resting on the floor (used while lying)
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.05) * TIME_SCALE;
+        time += dt;
+        if (!rig) { renderer.render(scene, camera); return; }
+
+        const m = metrics();
+        const u = time - (seq.t0 || 0);
+        const surf = resolveSurf(curSurf, m);
+        let poseMode = 'idle', targetRotZ = 0, targetHeading = heading, grounded = true, lieMode = null, lieRx = 0;
+        let floorY = surf.top;
+
+        switch (seq.st) {
+            case 'lie':
+                pos.y = surf.top;
+                pos.x = surf.left + m.Hpx * 0.98 + lieFix;
+                poseMode = 'lie'; lieMode = 'lie'; lieRx = -Math.PI / 2;
+                heading = targetHeading = Math.PI / 2; rotZ = 0; rotZVel = 0;
+                if (u > 3.4 && behavior === 'auto') { setState('rise'); say('Oh! Let me help you 👀', 2000); }
+                break;
+            case 'rise': {
+                pos.y = surf.top;
+                heading = targetHeading = Math.PI / 2;
+                if (u < 1.0) {                                   // sit-up
+                    seq.e1 = ease(u / 1.0);
+                    lieMode = 'situp'; lieRx = -Math.PI / 2 * (1 - seq.e1); poseMode = 'floorSit';
+                } else {                                         // pull feet in and stand
+                    seq.e2 = ease((u - 1.0) / 1.0);
+                    lieMode = 'getup'; poseMode = seq.e2 < 0.6 ? 'crouch' : 'idle';
+                }
+                if (u > 2.05) decide();
+                break;
+            }
+            case 'walk': {
+                pos.y = surf.top;
+                const hx = seq.target === 'seat' ? m.seatX : seq.hx;
+                const dx = hx - pos.x;
+                poseMode = 'walk';
+                targetHeading = Math.sign(dx || 1) * 0.95;
+                if (Math.abs(dx) < 5) { pos.x = hx; setState(seq.then, { hop: seq.hop }); }
+                else seq.hx = hx;
+                break;
+            }
+            case 'wander': {
+                pos.y = surf.top;
+                const lo = surf.left + m.Hpx * 0.25, hi = surf.right - m.Hpx * 0.25;
+                if (hi - lo < 12) { poseMode = 'idle'; targetHeading = 0; break; }
+                if (pos.x >= hi) seq.dir = -1; else if (pos.x <= lo) seq.dir = 1;
+                poseMode = 'walk'; targetHeading = seq.dir * 0.95;
+                seq.hx = seq.dir > 0 ? hi : lo;
+                break;
+            }
+            case 'hold':
+                pos.y = surf.top; poseMode = time < reactUntil ? 'talk' : 'idle'; targetHeading = 0;
+                break;
+            case 'preHop':
+                pos.y = surf.top; poseMode = 'crouch';
+                if (u > 0.25) setState('hop', { x0: pos.x, y0: surf.top, hop: seq.hop });
+                break;
+            case 'hop': {
+                const tgt = resolveSurf(seq.hop.ref, m);
+                const x1 = seq.hop.ref === SEAT && sameSurf(seq.hop.ref, SEAT) && seq.hop.xl === undefined ? m.seatX : seq.hop.xl;
+                const dxh = x1 - seq.x0, dyh = tgt.top - seq.y0;
+                const dur = 0.42 + Math.abs(dxh) / 900 + Math.abs(dyh) / 1400;
+                const k = Math.min(1, u / dur);
+                const arc = m.Hpx * 0.2 + Math.max(0, -dyh);
+                pos.x = seq.x0 + dxh * k;
+                pos.y = seq.y0 + dyh * k - arc * 4 * k * (1 - k);
+                floorY = tgt.top; grounded = false;
+                poseMode = 'jump';
+                targetHeading = Math.abs(dxh) > 8 ? Math.sign(dxh) * 0.95 : heading;
+                if (k >= 1) { curSurf = seq.hop.ref; visited.push(seq.hop.ref); setState('land', { then: null }); }
+                break;
+            }
+            case 'land':
+                pos.y = surf.top; poseMode = 'crouch';
+                if (u > 0.35) { if (seq.then) setState(seq.then); else decide(); }
+                break;
+            case 'turn':
+                pos.y = surf.top; poseMode = 'idle'; targetHeading = SIT_HEADING;
+                if (Math.abs(heading - SIT_HEADING) < 0.03) { setState('sit'); say('I\'ll wait here 🙂', 2400); }
+                break;
+            case 'sit':
+                pos.y = surf.top; pos.x = m.seatX;
+                sitAmt = Math.min(1, sitAmt + dt / 0.9);
+                targetHeading = SIT_HEADING;
+                poseMode = time < reactUntil ? 'sitTalk' : 'sit';
+                break;
+            case 'standUp':
+                pos.y = surf.top;
+                sitAmt = Math.max(0, sitAmt - dt / 0.6);
+                poseMode = 'idle';
+                if (sitAmt <= 0) decide();
+                break;
+            case 'drag': {
+                grounded = false;
+                const d = m.Hpx * 0.78;                                    // held by the collar
+                const targetTheta = -Math.max(-0.7, Math.min(0.7, ptr.vx * 0.0011));
+                rotZVel += ((targetTheta - rotZ) * 45 - rotZVel * 5) * dt;  // pendulum swing
+                rotZ += rotZVel * dt; targetRotZ = rotZ;
+                pos.x = ptr.gx + d * Math.sin(rotZ);
+                pos.y = ptr.gy + d * Math.cos(rotZ);
+                poseMode = 'dangle'; targetHeading = 0;
+                const below = surfaceBelow(pos.x, pos.y, m);
+                floorY = resolveSurf(below, m).top;
+                break;
+            }
+            case 'fall': {
+                grounded = false;
+                seq.vy += 2600 * dt;
+                pos.y += seq.vy * dt;
+                const below = surfaceBelow(pos.x, pos.y - seq.vy * dt, m);
+                const top = resolveSurf(below, m).top;
+                floorY = top;
+                poseMode = 'dangle'; targetHeading = 0;
+                if (pos.y >= top) {
+                    pos.y = top; curSurf = below; visited = [];
+                    say(seq.vy > 900 ? 'Ouch! 😅' : 'Phew!', 1400);
+                    setState('land', { then: null });
+                }
+                break;
+            }
+        }
+        if (seq.st !== 'sit' && seq.st !== 'standUp') sitAmt = Math.max(0, sitAmt - dt / 0.4);
+
+        // ---- bones
+        const B0 = rig.bones;
+        let T, hipsOff = [0, 0, 0];
+        if (poseMode === 'walk' || poseMode === 'idle' || poseMode === 'talk') {
+            if (poseMode === 'walk') walkPhase += dt * Math.PI * 2 * 0.9;
+            ({ T, hipsOff } = poseTargets(poseMode, 1.0, walkPhase, time));
+        } else {
+            T = extraPose(poseMode, time, poseTargets('talk', 1.0, 0, time).T);
+        }
+        const fast = poseMode === 'jump' || poseMode === 'crouch' || poseMode === 'dangle' || poseMode === 'floorSit';
+        const blend = 1 - Math.exp(-dt * (fast ? 14 : 8));
+        for (const name of BONE_NAMES) {
+            const bone = rig.bones[name], tg = T[name];
+            bone.rotation.x += (tg[0] - bone.rotation.x) * blend;
+            bone.rotation.y += (tg[1] - bone.rotation.y) * blend;
+            bone.rotation.z += (tg[2] - bone.rotation.z) * blend;
+        }
+
+        if (lieMode === 'situp') { B0.thigh_L.rotation.x = -1.5 * seq.e1; B0.thigh_R.rotation.x = -1.5 * seq.e1 + (1 - seq.e1) * -1.05; }
+
+        // ---- hips: planted foot on the floor / seat
+        const B = rig.bones, r0 = rig.rest.hips;
+        const restY = ankleOffset(rig.legs.L, 0, 0).y;
+        let stance = 'L', lowest = Infinity;
+        for (const sd of ['L', 'R']) {
+            const a = ankleOffset(rig.legs[sd], B['thigh_' + sd].rotation.x, B['shin_' + sd].rotation.x);
+            rig.legs[sd].cur = a;
+            if (a.y < lowest) { lowest = a.y; stance = sd; }
+        }
+        const groundDrop = (grounded && lieMode !== 'lie' && lieMode !== 'situp') ? (restY - lowest) * rig.s : 0;
+        B.hips.position.set(r0.x + hipsOff[0] * rig.s, r0.y + groundDrop * (1 - sitAmt) - 0.70 * rig.s * sitAmt, r0.z);
+
+        // ---- forward motion from the planted foot (no foot skating)
+        const leg = rig.legs[stance];
+        if (poseMode === 'walk' && leg.prevZ !== null) {
+            const dz = (leg.cur.z - leg.prevZ) * rig.s * rig.scale;
+            if (dz < 0) rig.groundSpeed += (dz / Math.max(dt, 1e-4) - rig.groundSpeed) * 0.25;
+        } else if (poseMode !== 'walk') rig.groundSpeed *= 0.8;
+        rig.legs.L.prevZ = rig.legs.L.cur.z; rig.legs.R.prevZ = rig.legs.R.cur.z;
+
+        const dh = targetHeading - heading;
+        heading += Math.sign(dh) * Math.min(Math.abs(dh), dt * 3.2);
+        if ((seq.st === 'walk' || seq.st === 'wander') && poseMode === 'walk') {
+            pos.x += Math.sin(heading) * -rig.groundSpeed * m.S * dt;
+            if (seq.hx !== undefined && (seq.hx - pos.x) * Math.sign(Math.sin(heading)) < 0 && Math.abs(heading) > 0.5) pos.x = seq.hx;
+        }
+        if (seq.st !== 'drag' && seq.st !== 'rise' && seq.st !== 'lie') {
+            rotZVel += ((targetRotZ - rotZ) * 60 - rotZVel * 12) * dt;
+            rotZ += rotZVel * dt;
+        }
+
+        // ---- place the character (screen px → world)
+        walker.scale.setScalar(m.S);
+        walker.rotation.set(lieRx, heading, rotZ);
+        walker.position.set(pos.x, -pos.y, 0);
+        if (lieMode) {
+            walker.updateMatrixWorld(true);
+            if (lieMode === 'lie' || lieMode === 'situp') {
+                // keep the hips where they rest on the text while lying / sitting up
+                rig.bones.hips.getWorldPosition(tmpV);
+                if (lieMode === 'lie') lieAnchorX = tmpV.x;
+                walker.position.x += lieAnchorX - tmpV.x;
+                lieShift = walker.position.x - pos.x;
+            } else {
+                walker.position.x = pos.x + lieShift * (1 - seq.e2);
+            }
+            walker.updateMatrixWorld(true);
+            let low = -1e9;
+            for (const [bone, r] of LIE_CONTACTS) { rig.bones[bone].getWorldPosition(tmpV); low = Math.max(low, -tmpV.y + r * 0.875 * m.S); }
+            walker.position.y += (low - pos.y) * (lieMode === 'getup' ? (1 - seq.e2) : 1);
+        }
+        walker.updateMatrixWorld(true);
+
+        // contact shadow sized to the body's footprint
+        const cr = charRect();
+        if (seq.st === 'lie') {
+            // don't cover the "Location" tag above the heading: slide along the text until clear
+            const tg = tagEl.getBoundingClientRect();
+            if (cr.t < tg.bottom && cr.l < tg.right + 10) lieFix = Math.min(lieFix + (tg.right + 10 - cr.l), Math.max(0, m.textR - m.textL - m.Hpx * 1.1));
+        }
+        shadow.visible = true;
+        const air = Math.max(0, floorY - cr.b + m.Hpx * 0.07);
+        const fade = Math.max(0.35, 1 - air / 400);
+        shadow.scale.set(Math.max(m.Hpx * 0.45, (cr.r - cr.l) * 0.95) * fade, m.Hpx * 0.07, 1);
+        shadow.position.set((cr.l + cr.r) / 2, -floorY - m.Hpx * 0.01, -900);
+        shadow.material.opacity = Math.max(0.15, 1 - air / 300);
+
+        // speech bubble just above the head
+        rig.bones.head.getWorldPosition(tmpV);
+        bubbleEl.style.left = tmpV.x + 'px';
+        bubbleEl.style.top = (cr.t - 2) + 'px';
+
+        renderer.render(scene, camera);
+    }
+    animate();
+</script>
+</body>
+</html>
